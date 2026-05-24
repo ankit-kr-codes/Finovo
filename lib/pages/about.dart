@@ -1,6 +1,7 @@
 import 'package:expen/core/theme.dart';
 import 'package:expen/provider/version_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -54,7 +55,7 @@ class About extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             //Contact Section
-            Text(
+            const Text(
               "Contact",
               style: TextStyle(
                 color: AppColors.blue,
@@ -73,7 +74,7 @@ class About extends StatelessWidget {
             ListTile(
               onTap: () {
                 redirectUrl(
-                  "mailto:ankit.kr.codes@gmail.com?subject={From Expen App}",
+                  "mailto:ankit.kr.codes@gmail.com?subject={From Finovo App}",
                 );
               },
               title: const Text("Email"),
@@ -83,7 +84,7 @@ class About extends StatelessWidget {
             ),
 
             //About App
-            Text(
+            const Text(
               "App",
               style: TextStyle(
                 color: AppColors.blue,
@@ -100,6 +101,24 @@ class About extends StatelessWidget {
               subtitle: const Text("Open Source Licesnses"),
             ),
             ListTile(
+              onTap: () {
+                context.push('/terms');
+              },
+              title: const Text("Terms of Service"),
+              leading: const Icon(Icons.gavel_outlined),
+              splashColor: AppColors.transparent,
+              subtitle: const Text("Usage rules & disclaimers"),
+            ),
+            ListTile(
+              onTap: () {
+                context.push('/privacy');
+              },
+              title: const Text("Privacy Policy"),
+              leading: const Icon(Icons.privacy_tip_outlined),
+              splashColor: AppColors.transparent,
+              subtitle: const Text("How we protect your data"),
+            ),
+            ListTile(
               onTap: () {},
               title: const Text("App Version"),
               subtitle: Text(context.watch<VersionProvider>().version),
@@ -108,22 +127,22 @@ class About extends StatelessWidget {
             ),
 
             //Developers Section
-            Text(
-              "Developers Section",
-              style: TextStyle(
-                color: AppColors.blue,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            ListTile(
-              onTap: () {
-                redirectUrl("https://github.com/ankit-kr-codes/Expen");
-              },
-              title: const Text("GitHub"),
-              splashColor: AppColors.transparent,
-              leading: const Icon(Icons.code),
-              subtitle: const Text("ankit-kr-codes"),
-            ),
+            // const Text(
+            //   "Developers Section",
+            //   style: TextStyle(
+            //     color: AppColors.blue,
+            //     fontWeight: FontWeight.bold,
+            //   ),
+            // ),
+            // ListTile(
+            //   onTap: () {
+            //     redirectUrl("https://github.com/ankit-kr-codes/Expen");
+            //   },
+            //   title: const Text("GitHub"),
+            //   splashColor: AppColors.transparent,
+            //   leading: const Icon(Icons.code),
+            //   subtitle: const Text("ankit-kr-codes"),
+            // ),
           ],
         ),
       ),

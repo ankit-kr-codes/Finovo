@@ -1,7 +1,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        READ_SMS: Used ONLY for manual, user-initiated inbox scan.
+        No background service or BroadcastReceiver intercepts incoming SMS.
+        This is a manual feature the user explicitly triggers in Settings.
+    -->
+    <uses-permission android:name="android.permission.READ_SMS"/>
+
+    <!-- Local notifications (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- Internet for time sync (optional) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:name="${applicationName}"
-        android:label="Expen"
+        android:label="Finovo"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

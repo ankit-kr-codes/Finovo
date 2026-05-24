@@ -7,250 +7,392 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 
 class AddExpense extends StatefulWidget {
-  const AddExpense({super.key});
+  final bool isIncome;
+  const AddExpense({super.key, this.isIncome = false});
 
   @override
   State<AddExpense> createState() => _AddExpenseState();
 }
 
 class _AddExpenseState extends State<AddExpense> {
-  //Controllers
-  TextEditingController numController = TextEditingController();
-  TextEditingController titleController = TextEditingController();
-  TextEditingController subTitleController = TextEditingController();
+  late bool _isIncome;
+  String? _selectedCategory;
+  String _selectedPaymentMethod = "Cash";
 
-  //Border design
-  final OutlineInputBorder _outlineInputBorder = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(30),
-    borderSide: BorderSide.none,
-  );
+  final TextEditingController _amountController = TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
 
-  //NEW - DEV AIDAN H -
-  DateTime todaysDate = DateTime.now(); //PULLING THE DATETIME FOR DISPLAY
-  DateTime? selectedDate; //SETTING VAR FOR DATE SELECTOR
+  DateTime _selectedDate = DateTime.now();
+
+  final List<String> _paymentMethods = const [
+    "Cash",
+    "Card",
+    "UPI",
+    "Net Banking",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _isIncome = widget.isIncome;
+  }
 
   Future<void> _selectDate() async {
-    DateTime? pickedDate = await showDatePicker(
+    DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(
-        todaysDate.year,
-        todaysDate.month - 1,
-        todaysDate.day,
-      ),
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
       lastDate: DateTime.now(),
     );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
 
-    setState(() {
-      selectedDate = pickedDate;
-    });
+  void _saveTransaction(AmountProvider amountProvider, String currencySymbol) {
+    var amountText = _amountController.text.trim();
+    if (amountText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter a valid amount")),
+      );
+      return;
+    }
+
+    double? amountValue = double.tryParse(amountText);
+    if (amountValue == null || amountValue <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter a positive numeric amount")),
+      );
+      return;
+    }
+
+    if (_selectedCategory == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Please select a category")));
+      return;
+    }
+
+    // Save
+    amountProvider.addAmount(
+      _selectedCategory!,
+      _notesController.text.trim(),
+      amountValue,
+      _selectedDate,
+      isIncome: _isIncome,
+      paymentMethod: _selectedPaymentMethod,
+    );
+
+    // If it was an expense, check if it goes near/over budget and alert user
+    if (!_isIncome) {
+      var limit = amountProvider.getBudgetLimit(_selectedCategory!);
+      if (limit > 0) {
+        var currentSpent =
+            amountProvider.getCategoryMonthlySpending(_selectedCategory!) +
+            amountValue;
+        if (currentSpent > limit) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Budget Exceeded for $_selectedCategory! ($currencySymbol${currentSpent.toStringAsFixed(0)} / $currencySymbol${limit.toStringAsFixed(0)})",
+              ),
+              backgroundColor: AppColors.expense,
+            ),
+          );
+        } else if (currentSpent >= limit * 0.85) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Warning: Near budget limit for $_selectedCategory!",
+              ),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
+      }
+    }
+
+    context.pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    //Provider
     var amountProvider = Provider.of<AmountProvider>(context);
     var currencyProvider = Provider.of<CurrencyProvider>(context);
+    var isDark = Theme.of(context).brightness == Brightness.dark;
+    var categories = amountProvider.allCategories;
 
     return Scaffold(
-      //NEW - DEV AIDAN H - MAKES THE UI SCROLLABLE TO FIX SCREEN OVERFLOW
-      resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        leading: GestureDetector(
-          onTap: () => context.pop(),
-          child: Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Icon(Icons.arrow_back_ios, color: AppColors.blue),
-          ),
+        title: const Text("New Transaction"),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => context.pop(),
         ),
-        leadingWidth: 50,
-        centerTitle: true,
-        title: const Text(
-          "Add New Expense",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          //Saving expense data
-          GestureDetector(
-            onTap: () {
-              //Check if the textfield is empty or not
-              if (numController.text.isNotEmpty) {
-                double? amount = double.tryParse(numController.text);
-                String title = titleController.text;
-                String subtitle = subTitleController.text;
-
-                if (amount != null) {
-                  selectedDate ??= todaysDate;
-                  amountProvider.addAmount(
-                    title,
-                    subtitle,
-                    amount,
-                    selectedDate!,
-                  ); //NEW - DEV AIDAN H - PASSING NEW DATE TO PROVIDER
-                  context.pop();
-                  //User will go to home screen and get a dialog box to notify that expense is added
-                  showDialog<String>(
-                    context: context,
-                    builder:
-                        (BuildContext context) => AlertDialog(
-                          title: const Text('Amount added'),
-                          content: const Text(
-                            "Your expense has been added successfully!\n\nLong press to delete it.",
-                          ),
-                          actions: <Widget>[
-                            TextButton(
-                              onPressed: () => context.pop(),
-                              child: const Text('OK'),
-                            ),
-                          ],
-                        ),
-                  );
-                } else {
-                  //Inform user that entered amount is invalid (means it's not a double value)
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Please enter a valid amount"),
-                      showCloseIcon: true,
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
-                }
-                numController.clear(); // This will clear the textfield
-                titleController.clear(); // This will clear the textfield
-              } else {
-                //If textfield is empty then user will get this snackbar
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "Please enter an amount. Amount cannot be empty.",
-                    ),
-                    showCloseIcon: true,
-                    duration: Duration(seconds: 1),
-                  ),
-                );
-              }
-            },
-            child: Text(
-              "Save",
-              style: TextStyle(
-                fontSize: 15,
-                color: AppColors.blue,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-        ],
       ),
       body: SingleChildScrollView(
-        //NEW - DEV AIDAN H - MAKES THE UI SCROLLABLE TO FIX SCREEN OVERFLOW
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              //Getting amount from user
-              SizedBox(
-                width: 150,
-                child: TextField(
-                  controller: numController,
-                  keyboardType: TextInputType.number,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: AppColors.lightTransparent,
-                    hintText: "0.00",
-                    prefixIcon: SizedBox(
-                      width: 0,
-                      child: Center(
-                        heightFactor: 0.2,
-                        child: Text(
-                          //This will show selected currency symbol
-                          currencyProvider.selectedCurrencySymbol,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: AppColors.darkGrey,
+              // 1. Sliding Selector: Expense / Income
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color:
+                      isDark ? AppColors.darkCard : AppColors.lightTransparent,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color:
+                        isDark ? AppColors.borderDark : AppColors.borderLight,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _isIncome = false),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color:
+                                !_isIncome
+                                    ? AppColors.expense
+                                    : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            "Expense",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  !_isIncome
+                                      ? Colors.white
+                                      : (isDark
+                                          ? Colors.white70
+                                          : Colors.black87),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                    prefixStyle: TextStyle(color: AppColors.grey),
-                    border: _outlineInputBorder,
-                    enabledBorder: _outlineInputBorder,
-                    focusedBorder: _outlineInputBorder,
-                    hoverColor: AppColors.transparent,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 50),
-
-              //Getting title from the user
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text("Expense Title"),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: titleController,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AppColors.lightTransparent,
-                  border: _outlineInputBorder,
-                  enabledBorder: _outlineInputBorder,
-                  focusedBorder: _outlineInputBorder,
-                  hoverColor: AppColors.transparent,
-                ),
-              ),
-              const SizedBox(height: 30),
-
-              //Getting description from the user
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text("Expense Description"),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: subTitleController,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AppColors.lightTransparent,
-                  border: _outlineInputBorder,
-                  enabledBorder: _outlineInputBorder,
-                  focusedBorder: _outlineInputBorder,
-                  hoverColor: AppColors.transparent,
-                ),
-              ),
-              const SizedBox(height: 30),
-              //NEW - DEV AIDAN H - ALLOW USER TO SELECT DATE
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // const Text(
-                  //   "Please select a custom date for this expense\nOr leave it as the default",
-                  //   textAlign: TextAlign.center,
-                  // ),
-                  // const SizedBox(height: 15),
-                  Text(
-                    selectedDate != null
-                        ? DateFormat('dd MMMM yyyy').format(selectedDate!)
-                        : DateFormat('dd MMMM yyyy').format(todaysDate),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 15),
-                  ElevatedButton(
-                    onPressed: _selectDate,
-                    style: ButtonStyle(
-                      elevation: const WidgetStatePropertyAll(0),
-                      overlayColor: WidgetStatePropertyAll(
-                        AppColors.transparent,
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _isIncome = true),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color:
+                                _isIncome
+                                    ? AppColors.income
+                                    : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            "Income",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  _isIncome
+                                      ? Colors.white
+                                      : (isDark
+                                          ? Colors.white70
+                                          : Colors.black87),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    child: const Text("Change Date"),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
+
+              // 2. Large Numeric Amount display
+              Center(
+                child: SizedBox(
+                  width: 250,
+                  child: TextField(
+                    controller: _amountController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    textAlign: TextAlign.center,
+                    autofocus: true,
+                    style: const TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: "0.00",
+                      prefixText: currencyProvider.selectedCurrencySymbol,
+                      prefixStyle: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // 3. Category Chip Grid
+              const Text(
+                "Category",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children:
+                    categories.map((c) {
+                      var isSelected = _selectedCategory == c;
+                      var color = CategoryStyle.getColor(c);
+                      return FilterChip(
+                        label: Text(c),
+                        avatar: Icon(
+                          CategoryStyle.getIcon(c),
+                          size: 16,
+                          color: isSelected ? Colors.white : color,
+                        ),
+                        selected: isSelected,
+                        selectedColor: color,
+                        checkmarkColor: Colors.white,
+                        labelStyle: TextStyle(
+                          color:
+                              isSelected
+                                  ? Colors.white
+                                  : (isDark ? Colors.white70 : Colors.black87),
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        onSelected: (val) {
+                          setState(() {
+                            _selectedCategory = val ? c : null;
+                          });
+                        },
+                      );
+                    }).toList(),
+              ),
+              const SizedBox(height: 24),
+
+              // 4. Date selection
+              const Text(
+                "Date",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: _selectDate,
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
+                  decoration: premiumCardDeco(isDark: isDark),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.calendar_month_outlined,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            DateFormat('dd MMMM yyyy').format(_selectedDate),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      const Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 16,
+                        color: AppColors.textMutedDark,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // 5. Payment Method Selector
+              const Text(
+                "Payment Method",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                children:
+                    _paymentMethods.map((m) {
+                      var isSelected = _selectedPaymentMethod == m;
+                      return ChoiceChip(
+                        label: Text(m),
+                        selected: isSelected,
+                        onSelected: (val) {
+                          if (val) {
+                            setState(() {
+                              _selectedPaymentMethod = m;
+                            });
+                          }
+                        },
+                      );
+                    }).toList(),
+              ),
+              const SizedBox(height: 24),
+
+              // 6. Notes Input
+              const Text(
+                "Notes",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _notesController,
+                decoration: const InputDecoration(
+                  hintText: "Add description or tags...",
+                ),
+              ),
+              const SizedBox(height: 36),
+
+              // 7. Save Button
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  backgroundColor:
+                      _isIncome ? AppColors.income : AppColors.expense,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed:
+                    () => _saveTransaction(
+                      amountProvider,
+                      currencyProvider.selectedCurrencySymbol,
+                    ),
+                child: const Text(
+                  "Save Transaction",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+              const SizedBox(height: 24),
             ],
           ),
         ),

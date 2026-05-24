@@ -1,0 +1,8 @@
+{
+  "terminal.integrated.env.linux": {
+    "JAVA_HOME": "/home/ankit/.sdkman/candidates/java/current",
+    "PATH": "/home/ankit/.sdkman/candidates/java/current/bin:${env:PATH}"
+  },
+  "dart.flutterSdkPath": "/home/ankit/flutter",
+  "java.jdt.ls.java.home": "/home/ankit/.sdkman/candidates/java/current"
+}
